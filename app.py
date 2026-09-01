@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, request
 import os
 import requests
 from notifier import SimplepushNotifier
@@ -16,9 +16,10 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-# El config.json sí lo dejamos local porque no cambia, solo se lee.
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
+
+TOKEN_SECRETO = "UnDiegoGay6803"
 
 def load_local_config():
     if os.path.exists(CONFIG_FILE):
@@ -49,6 +50,11 @@ def home():
 
 @app.route('/ejecutar-scan')
 def run_monitor():
+    token_recibido = request.args.get('token')
+    
+    if token_recibido != TOKEN_SECRETO:
+        return "Acceso denegado. Token inválido.", 403
+
     config = load_local_config()
     simplepush_key = config.get("simplepush_key")
     urls = config.get("urls", [])
