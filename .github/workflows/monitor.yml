@@ -1,0 +1,38 @@
+name: Stock Monitor
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch: # Permite ejecutarlo manualmente con un botón
+
+jobs:
+  run-monitor:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Da permiso al robot para guardar el state.json
+
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Instalar librerías
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Ejecutar el monitor
+        run: python main.py
+
+      - name: Guardar la memoria (state.json)
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add state.json
+          # Guarda el archivo solo si hubo algún cambio
+          git commit -m "Actualizar historial de stock" || exit 0
+          git push
