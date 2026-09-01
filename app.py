@@ -50,15 +50,15 @@ def home():
 @app.route('/ejecutar-scan')
 def run_monitor():
     config = load_local_config()
-    topic = config.get("ntfy_topic")
+    simplepush_key = config.get("simplepush_key")
     urls = config.get("urls", [])
 
-    if not topic or not urls:
+    if not simplepush_key or not urls:
         return "Error: Faltan URLs en el config", 400
 
-    notifier = NtfyNotifier(topic)
+    notifier = NtfyNotifier(simplepush_key)
     scraper = ProductScraper()
-    state = load_cloud_state() # <-- Lee de la nube
+    state = load_cloud_state() 
     
     cambios_detectados = 0
 
