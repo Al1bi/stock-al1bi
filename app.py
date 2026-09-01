@@ -1,7 +1,7 @@
 from flask import Flask
 import os
 import requests
-from notifier import NtfyNotifier
+from notifier import SimplepushNotifier
 from scraper import ProductScraper
 import json
 
@@ -56,7 +56,7 @@ def run_monitor():
     if not simplepush_key or not urls:
         return "Error: Faltan URLs en el config", 400
 
-    notifier = NtfyNotifier(simplepush_key)
+    notifier = SimplepushNotifier(simplepush_key)
     scraper = ProductScraper()
     state = load_cloud_state() 
     
