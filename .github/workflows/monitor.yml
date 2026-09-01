@@ -2,7 +2,7 @@ name: Stock Monitor
 
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '*/20 * * * *'
   workflow_dispatch: # Permite ejecutarlo manualmente con un botón
 
 jobs:
