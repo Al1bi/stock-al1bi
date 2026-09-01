@@ -8,8 +8,8 @@ import json
 app = Flask(__name__)
 
 # --- CREDENCIALES DE JSONBIN ---
-BIN_ID = "PEGA_AQUI_TU_BIN_ID"
-API_KEY = "PEGA_AQUI_TU_API_KEY"
+BIN_ID = "6a9721f0f5f4af5e295de20e"
+API_KEY = "$2a$10$eXLp.Q/WzrN8J5JE4ikLu.21D0K6XodjijoYbiTWFJKG9HgFrrZJm"
 BIN_URL = f"https://api.jsonbin.io/v3/b/{BIN_ID}"
 HEADERS = {
     "X-Master-Key": API_KEY,
