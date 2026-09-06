@@ -1,21 +1,34 @@
 import requests
+from settings import PUSHBULLET_TOKEN
 
-class SimplepushNotifier:
-  def __init__(self, key):
-    self.key = key.strip() # Tu llave de 6 letras de la app
+class PushbulletNotifier:
+  def __init__(self):
+    self.token = PUSHBULLET_TOKEN
+    self.url = "https://api.pushbullet.com/v2/pushes"
+    self.headers = {
+      "Access-Token": self.token,
+      "Content-Type": "application/json"
+    }
 
   def send_stock_alert(self, title, editorial, old_stock, new_stock, product_url):
-    url = f"https://api.simplepush.io/send"
-      
     payload = {
-        "key": self.key,
-        "title": f"¡Stock actualizado! ({editorial})",
-        "msg": f"{title}\nStock: {old_stock} ➔ {new_stock}\nLink: {product_url}"
+      "type": "link",
+      "title": f"¡Stock actualizado! ({editorial})",
+      "body": f"{title}\nStock: {old_stock} ➔ {new_stock}",
+      "url": product_url
     }
-      
     try:
-      response = requests.post(url, json=payload, timeout=15)
-      response.raise_for_status()
-      print("Notificación de Simplepush enviada con éxito")
+      requests.post(self.url, json=payload, headers=self.headers, timeout=15)
     except Exception as e:
-      print(f"Error enviando a Simplepush: {e}")
+      print(f"Error enviando a Pushbullet: {e}")
+
+  def send_catalog_alert(self, editorial, new_book_title):
+    payload = {
+      "type": "note",
+      "title": f"Nuevo libro en {editorial}",
+      "body": f"Se ha agregado al catálogo: {new_book_title}"
+    }
+    try:
+      requests.post(self.url, json=payload, headers=self.headers, timeout=15)
+    except Exception as e:
+      print(f"Error enviando alerta de catálogo a Pushbullet: {e}")

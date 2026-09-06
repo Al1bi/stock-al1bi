@@ -1,7 +1,6 @@
 import lxml.html
 import requests
 
-# AQUÍ PONDRÁS TUS XPATHS COMPLETOS
 TITLE_XPATH = "/html/body/main/section[1]/product-info/div/div/div[2]/section/div[1]/h1"
 EDITORIAL_XPATH = "/html/body/main/section[1]/product-info/div/div/div[2]/section/p"
 STOCK_XPATH = "/html/body/main/section[1]/product-info/div/div/div[2]/section/text()"
