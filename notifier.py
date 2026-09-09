@@ -22,11 +22,12 @@ class PushbulletNotifier:
     except Exception as e:
       print(f"Error enviando a Pushbullet: {e}")
 
-  def send_catalog_alert(self, editorial, new_book_title):
+  def send_catalog_alert(self, titulo, mensaje):
+    # El título y el cuerpo ahora se reciben directamente para mayor personalización
     payload = {
       "type": "note",
-      "title": f"Nuevo libro en {editorial}",
-      "body": f"Se ha agregado al catálogo: {new_book_title}"
+      "title": titulo,
+      "body": mensaje
     }
     try:
       requests.post(self.url, json=payload, headers=self.headers, timeout=15)
