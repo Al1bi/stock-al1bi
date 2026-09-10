@@ -1,35 +1,37 @@
 import requests
-from settings import PUSHBULLET_TOKEN
+from settings import NTFY_TOKEN, NTFY_TOPIC
 
-class PushbulletNotifier:
+class NtfyNotifier:
   def __init__(self):
-    self.token = PUSHBULLET_TOKEN
-    self.url = "https://api.pushbullet.com/v2/pushes"
+    self.token = NTFY_TOKEN
+    self.topic = NTFY_TOPIC
+    self.url = "https://ntfy.sh/"
     self.headers = {
-      "Access-Token": self.token,
+      "Authorization": f"Bearer {self.token}",
       "Content-Type": "application/json"
     }
 
   def send_stock_alert(self, title, editorial, old_stock, new_stock, product_url):
     payload = {
-      "type": "link",
+      "topic": self.topic,
       "title": f"¡Stock actualizado! ({editorial})",
-      "body": f"{title}\nStock: {old_stock} ➔ {new_stock}",
-      "url": product_url
+      "message": f"{title}\nStock: {old_stock} ➔ {new_stock}",
+      "click": product_url,
+      "tags": ["bell"] # Opcional: Agrega un emoji a la notificación
     }
     try:
       requests.post(self.url, json=payload, headers=self.headers, timeout=15)
     except Exception as e:
-      print(f"Error enviando a Pushbullet: {e}")
+      print(f"Error enviando alerta de stock a ntfy: {e}")
 
   def send_catalog_alert(self, titulo, mensaje):
-    # El título y el cuerpo ahora se reciben directamente para mayor personalización
     payload = {
-      "type": "note",
+      "topic": self.topic,
       "title": titulo,
-      "body": mensaje
+      "message": mensaje,
+      "tags": ["loudspeaker"] # Opcional: Agrega un emoji a la notificación
     }
     try:
       requests.post(self.url, json=payload, headers=self.headers, timeout=15)
     except Exception as e:
-      print(f"Error enviando alerta de catálogo a Pushbullet: {e}")
+      print(f"Error enviando alerta de catálogo a ntfy: {e}")

@@ -1,4 +1,6 @@
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from lxml import html
 import time
 import re
@@ -17,6 +19,18 @@ class CatalogScraper:
       "Accept": "application/json"
     }
 
+    self.session = requests.Session()
+
+    retries = Retry(
+      total=5,
+      backoff_factor=2,
+      status_forcelist=[429, 500, 502, 503, 504],
+      allowed_methods=["GET"]
+    )
+    adapter = HTTPAdapter(max_retries=retries)
+    self.session.mount('http://', adapter)
+    self.session.mount('https://', adapter)
+
   def scan_full_catalog(self, debug=False, max_debug_items=1) -> dict:
     libros_totales = {}
     pagina = 1
@@ -26,7 +40,7 @@ class CatalogScraper:
       print(f"Escaneando página {pagina}...")
 
       try:
-        res = requests.get(url, headers=self.headers, timeout=15)
+        res = self.session.get(url, headers=self.headers, timeout=15)
         if res.status_code != 200:
           print(f"Status {res.status_code}. Deteniendo.")
           break
@@ -52,7 +66,7 @@ class CatalogScraper:
           html_url = f"{self.base_url}{base_path}"
 
           try:
-            res_json = requests.get(json_url, headers=self.json_headers, timeout=10)
+            res_json = self.session.get(json_url, headers=self.json_headers, timeout=15)
             if res_json.status_code == 200:
               data = res_json.json()
               product = data.get('product', {})
@@ -73,7 +87,9 @@ class CatalogScraper:
 
               stock = "Stock no disponible"
               try:
-                res_html = requests.get(html_url, headers=self.headers, timeout=10)
+                time.sleep(1) 
+                res_html = self.session.get(html_url, headers=self.headers, timeout=15)
+
                 if res_html.status_code == 200:
                   tree_html = html.fromstring(res_html.content)
                  
@@ -91,7 +107,6 @@ class CatalogScraper:
                      else:
                         stock = stock_str[:50] 
                         
-                time.sleep(0.3)
               except Exception as e_html:
                 print(f"Error procesando HTML para {html_url}: {e_html}")
 
@@ -116,13 +131,13 @@ class CatalogScraper:
                   "stock": stock
                 }
                 
-            time.sleep(0.3) 
+            time.sleep(1.5) 
             
           except Exception as e_json:
             print(f"Error procesando JSON para {json_url}: {e_json}")
 
         pagina += 1
-        time.sleep(0.5)
+        time.sleep(2)
 
       except Exception as e:
         print(f"Error crítico en página {pagina}: {e}")

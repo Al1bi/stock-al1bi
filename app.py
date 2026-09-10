@@ -1,14 +1,14 @@
 from flask import Flask, request
 from settings import TOKEN_SECRETO, URLS_TO_SCAN
 from storage import Storage
-from notifier import PushbulletNotifier
+from notifier import NtfyNotifier
 from scraper import ProductScraper
 from catalog_scraper import CatalogScraper
 
 app = Flask(__name__)
 
 db = Storage()
-notifier = PushbulletNotifier()
+notifier = NtfyNotifier()
 product_scraper = ProductScraper()
 
 @app.route('/')
@@ -38,8 +38,8 @@ def run_monitor():
       if last_stock is None:
         state[url] = {"title": title, "editorial": editorial, "stock": current_stock}
       elif current_stock != last_stock:
-        notifier.send_stock_alert(title, editorial, last_stock, current_stock, url)
-        state[url] = {"title": title, "editorial": editorial, "stock": current_stock}
+        notifier.send_stock_alert(last_title, last_editorial, last_stock, current_stock, url)
+        state[url] = {"title": last_title, "editorial": last_editorial, "stock": current_stock}
         cambios_detectados += 1
 
     db.save_all_products(state) 

@@ -5,7 +5,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 TOKEN_SECRETO = os.getenv("TOKEN_SECRETO")
-PUSHBULLET_TOKEN = os.getenv("PUSHBULLET_TOKEN")
+
+NTFY_TOKEN = os.getenv("NTFY_TOKEN")
+NTFY_TOPIC = os.getenv("NTFY_TOPIC")
 
 JSONBIN_ID = os.getenv("JSONBIN_ID")
 JSONBIN_API_KEY = os.getenv("JSONBIN_API_KEY")
