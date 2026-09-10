@@ -1,12 +1,23 @@
 import requests
+import logging
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from lxml import html
 import time
 import re
 
+# Configuración global de los logs (puedes ajustar el formato a tu gusto)
+logging.basicConfig(
+  level=logging.INFO,
+  format='%(asctime)s [%(levelname)s] %(message)s',
+  datefmt='%Y-%m-%d %H:%M:%S'
+)
+
 class CatalogScraper:
   def __init__(self, editorial_target="ALBA"):
+    # Instanciamos el logger para esta clase
+    self.logger = logging.getLogger(__name__)
+    
     self.editorial_target = editorial_target.upper()
     self.base_url = "https://libreriayachaywasi.com"
     self.search_url = f"{self.base_url}/search"
@@ -32,17 +43,21 @@ class CatalogScraper:
     self.session.mount('https://', adapter)
 
   def scan_full_catalog(self, debug=False, max_debug_items=1) -> dict:
+    if debug:
+      self.logger.setLevel(logging.DEBUG)
+
     libros_totales = {}
     pagina = 1
+    self.logger.info(f"Iniciando escaneo del catálogo para la editorial: {self.editorial_target}")
 
     while True:
       url = f"{self.search_url}?page={pagina}&q={self.editorial_target}"
-      print(f"Escaneando página {pagina}...")
+      self.logger.info(f"Escaneando página {pagina}...")
 
       try:
         res = self.session.get(url, headers=self.headers, timeout=15)
         if res.status_code != 200:
-          print(f"Status {res.status_code}. Deteniendo.")
+          self.logger.warning(f"Status {res.status_code}. Deteniendo escaneo en página {pagina}.")
           break
 
         tree = html.fromstring(res.content)
@@ -51,7 +66,7 @@ class CatalogScraper:
         lista_libros = tree.xpath(base_xpath)
         
         if not lista_libros:
-          print(f"Fin del catálogo detectado en la página {pagina}.")
+          self.logger.info(f"Fin del catálogo detectado en la página {pagina}.")
           break
 
         for idx, libro in enumerate(lista_libros):
@@ -95,9 +110,8 @@ class CatalogScraper:
                  
                   stock_raw = tree_html.xpath('/html/body/main/section[1]/product-info/div/div/div[2]/section/text()')
                   
-                  # Si no lo encuentra con el estricto, buscamos un elemento que comience con 'Cantidad' o que contenga la info
                   if not stock_raw or not "".join(stock_raw).strip():
-                    stock_raw = tree_html.xpath('.//section[contains(@class, "product-info")]//text()') # Fallback temporal
+                    stock_raw = tree_html.xpath('.//section[contains(@class, "product-info")]//text()')
                     
                   stock_str = " ".join([s.strip() for s in stock_raw if s.strip()])
                   if stock_str:
@@ -108,19 +122,21 @@ class CatalogScraper:
                         stock = stock_str[:50] 
                         
               except Exception as e_html:
-                print(f"Error procesando HTML para {html_url}: {e_html}")
+                self.logger.error(f"Error procesando HTML para {html_url}: {e_html}")
 
-              # --- Depuración ---
+              # --- Depuración con logs en nivel DEBUG ---
               if debug and pagina == 1 and idx < max_debug_items:
-                print(f"\n===== Item {idx} =====")
-                print(f"Título: {titulo}")
-                print(f"URL HTML: {html_url}")
-                print(f"URL JSON: {json_url}")
-                print(f"Handle: {handle}")
-                print(f"ID (Barcode): {id_libro}")
-                print(f"Editorial: '{editorial_texto}'")
-                print(f"Precio: {precio}")
-                print(f"Stock extraído: {stock}")
+                self.logger.debug(
+                  f"\n===== Item {idx} =====\n"
+                  f"Título: {titulo}\n"
+                  f"URL HTML: {html_url}\n"
+                  f"URL JSON: {json_url}\n"
+                  f"Handle: {handle}\n"
+                  f"ID (Barcode): {id_libro}\n"
+                  f"Editorial: '{editorial_texto}'\n"
+                  f"Precio: {precio}\n"
+                  f"Stock extraído: {stock}"
+                )
 
               if editorial_texto and self.editorial_target in editorial_texto:
                 libros_totales[id_libro] = {
@@ -134,13 +150,15 @@ class CatalogScraper:
             time.sleep(1.5) 
             
           except Exception as e_json:
-            print(f"Error procesando JSON para {json_url}: {e_json}")
+            self.logger.error(f"Error procesando JSON para {json_url}: {e_json}")
 
         pagina += 1
         time.sleep(2)
 
       except Exception as e:
-        print(f"Error crítico en página {pagina}: {e}")
+        # exc_info=True imprime todo el rastreo del error en consola (Stack trace)
+        self.logger.critical(f"Error crítico en página {pagina}: {e}", exc_info=True)
         break
 
+    self.logger.info(f"Escaneo finalizado. Total de libros extraídos: {len(libros_totales)}")
     return libros_totales
