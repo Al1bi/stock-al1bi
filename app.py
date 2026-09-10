@@ -6,6 +6,8 @@ from notifier import NtfyNotifier
 from scraper import ProductScraper
 from catalog_scraper import CatalogScraper
 
+import time
+
 app = Flask(__name__)
 
 db = Storage()
@@ -17,6 +19,7 @@ def procesar_scan():
   cambios_detectados = 0
 
   for url in URLS_TO_SCAN:
+    time.sleep(1.5) 
     title, editorial, current_stock = product_scraper.get_product_data(url)
     last_data = state.get(url, {})
     
