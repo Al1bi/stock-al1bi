@@ -1,3 +1,4 @@
+import threading
 from flask import Flask, request
 from settings import TOKEN_SECRETO, URLS_TO_SCAN
 from storage import Storage
@@ -11,49 +12,34 @@ db = Storage()
 notifier = NtfyNotifier()
 product_scraper = ProductScraper()
 
-@app.route('/')
-def home():
-  return "Servidor de monitoreo en línea activo."
+def procesar_scan():
+  state = db.get_all_products()
+  cambios_detectados = 0
 
-@app.route('/ejecutar-scan')
-def run_monitor():
-    if request.args.get('token') != TOKEN_SECRETO:
-        return "Acceso denegado.", 403
+  for url in URLS_TO_SCAN:
+    title, editorial, current_stock = product_scraper.get_product_data(url)
+    last_data = state.get(url, {})
+    
+    last_stock = last_data.get("stock")
+    last_title = last_data.get("title", "Desconocido")
+    last_editorial = last_data.get("editorial", "Desconocida")
 
-    state = db.get_all_products()
-    cambios_detectados = 0
+    if title == "Página no encontrada" and last_title != "Desconocido":
+      title = last_title
+      editorial = last_editorial
 
-    for url in URLS_TO_SCAN:
-      title, editorial, current_stock = product_scraper.get_product_data(url)
-      last_data = state.get(url, {})
-      
-      last_stock = last_data.get("stock")
-      last_title = last_data.get("title", "Desconocido")
-      last_editorial = last_data.get("editorial", "Desconocida")
+    if last_stock is None:
+      state[url] = {"title": title, "editorial": editorial, "stock": current_stock}
+    elif current_stock != last_stock:
+      notifier.send_stock_alert(last_title, last_editorial, last_stock, current_stock, url)
+      state[url] = {"title": last_title, "editorial": last_editorial, "stock": current_stock}
+      cambios_detectados += 1
 
-      if title == "Página no encontrada" and last_title != "Desconocido":
-        title = last_title
-        editorial = last_editorial
+  db.save_all_products(state)
+  print(f"Escaneo de stock completado. Cambios: {cambios_detectados}")
 
-      if last_stock is None:
-        state[url] = {"title": title, "editorial": editorial, "stock": current_stock}
-      elif current_stock != last_stock:
-        notifier.send_stock_alert(last_title, last_editorial, last_stock, current_stock, url)
-        state[url] = {"title": last_title, "editorial": last_editorial, "stock": current_stock}
-        cambios_detectados += 1
-
-    db.save_all_products(state) 
-    return f"Escaneo de stock completado. Cambios: {cambios_detectados}", 200
-
-
-@app.route('/escanear-catalogo')
-def scan_catalog():
-  if request.args.get('token') != TOKEN_SECRETO:
-    return "Acceso denegado.", 403
-
-  editorial = "ALBA"
+def procesar_catalogo(editorial):
   catalog_scraper = CatalogScraper(editorial_target=editorial)
-  
   libros_actuales = catalog_scraper.scan_full_catalog()
   cambios = 0
 
@@ -62,7 +48,8 @@ def scan_catalog():
     
     if not libros_anteriores:
       db.save_catalog(editorial, libros_actuales)
-      return f"Catálogo inicial de {editorial} guardado.", 200
+      print(f"Catálogo inicial de {editorial} guardado.")
+      return
         
     ids_actuales = set(libros_actuales.keys())
     ids_anteriores = set(libros_anteriores.keys())
@@ -110,8 +97,34 @@ def scan_catalog():
       cambios += 1
         
     db.save_catalog(editorial, libros_actuales)
+  print(f"Escaneo de catálogo completado. Cambios detectados: {cambios}")
 
-  return f"Escaneo de catálogo completado. Cambios detectados: {cambios}", 200
+@app.route('/')
+def home():
+  return "Servidor de monitoreo en línea activo."
+
+@app.route('/ejecutar-scan')
+def run_monitor():
+  if request.args.get('token') != TOKEN_SECRETO:
+    return "Acceso denegado.", 403
+
+  # Disparar el hilo en lugar de procesarlo en la solicitud principal
+  hilo = threading.Thread(target=procesar_scan)
+  hilo.start()
+  
+  return "Escaneo de stock iniciado en segundo plano.", 202
+
+@app.route('/escanear-catalogo')
+def scan_catalog():
+  if request.args.get('token') != TOKEN_SECRETO:
+    return "Acceso denegado.", 403
+
+  editorial = "ALBA"
+  # Disparar el hilo pasando argumentos
+  hilo = threading.Thread(target=procesar_catalogo, args=(editorial,))
+  hilo.start()
+
+  return f"Escaneo de catálogo de {editorial} iniciado en segundo plano.", 202
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+  app.run(host='0.0.0.0', port=5000)
