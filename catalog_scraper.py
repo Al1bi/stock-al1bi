@@ -162,3 +162,31 @@ class CatalogScraper:
 
     self.logger.info(f"Escaneo finalizado. Total de libros extraídos: {len(libros_totales)}")
     return libros_totales
+
+  def verify_book_exists(self, handle: str) -> bool:
+    """
+    Hace una petición directa a la URL del producto para confirmar si sigue existiendo.
+    Evita falsos positivos si el buscador interno de la tienda falla.
+    """
+    # Tiempo de espera breve solicitado
+    time.sleep(2)
+    
+    # Reconstruimos la URL directa usando el handle
+    url_json = f"{self.base_url}/products/{handle}.json"
+    self.logger.info(f"Doble verificación: Comprobando existencia directa de {handle}...")
+    
+    try:
+      res = self.session.get(url_json, headers=self.json_headers, timeout=15)
+      
+      # Si devuelve 200, el libro sigue existiendo.
+      if res.status_code == 200:
+        self.logger.info(f"[FALSO ELIMINADO] El libro '{handle}' sigue activo en la tienda.")
+        return True
+      else:
+        self.logger.info(f"[ELIMINADO CONFIRMADO] El libro '{handle}' dio status {res.status_code}.")
+        return False
+        
+    except Exception as e:
+      self.logger.error(f"Error en doble verificación para {handle}: {e}")
+      # Si hay error de red, asumimos que existe para no borrarlo por accidente
+      return True 
