@@ -108,10 +108,21 @@ def procesar_catalogo(editorial):
     ids_removidos = ids_anteriores - ids_actuales
     for id_removido in ids_removidos:
       libro = libros_anteriores[id_removido]
-      titulo_alert = f"ELIMINADO - {editorial}"
-      mensaje_baja = f"El libro '{libro['titulo']}' ya no se encuentra en el catálogo."
-      notifier.send_catalog_alert(titulo_alert, mensaje_baja)
-      cambios += 1
+      handle = libro.get('handle')
+      
+      # Doble verificación delegada al scraper
+      sigue_existiendo = catalog_scraper.verify_book_exists(handle)
+      
+      if sigue_existiendo:
+        # Falso positivo: el buscador lo ignoró o le cambiaron el ISBN. 
+        # Lo conservamos en nuestro diccionario actual para que no se borre de la DB.
+        libros_actuales[id_removido] = libro
+      else:
+        # Eliminado real
+        titulo_alert = f"ELIMINADO - {editorial}"
+        mensaje_baja = f"El libro '{libro['titulo']}' ya no se encuentra en el catálogo."
+        notifier.send_catalog_alert(titulo_alert, mensaje_baja)
+        cambios += 1
         
     db.save_catalog(editorial, libros_actuales)
     
