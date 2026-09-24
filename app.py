@@ -21,7 +21,7 @@ notifier = NtfyNotifier()
 product_scraper = ProductScraper()
 
 def procesar_scan():
-  logger.info("Iniciando tarea de procesamiento de stock de URLs en segundo plano...")
+  logger.info("Iniciando tarea de procesamiento de stock y precio de URLs en segundo plano...")
   state = db.get_all_products()
   cambios_detectados = 0
 
@@ -31,9 +31,11 @@ def procesar_scan():
     title = current_data["title"]
     editorial = current_data["editorial"]
     current_stock = current_data["stock"]
+    current_price = current_data.get("price", "No encontrado")
     
     last_data = state.get(url, {})
     last_stock = last_data.get("stock")
+    last_price = last_data.get("price")
     last_title = last_data.get("title", "Desconocido")
     last_editorial = last_data.get("editorial", "Desconocida")
 
@@ -41,31 +43,49 @@ def procesar_scan():
       title = last_title
       editorial = last_editorial
 
-    if last_stock is None:
-      logger.info(f"Nuevo enlace rastreado: {title}")
-      state[url] = {"title": title, "editorial": editorial, "stock": current_stock}
+    if not last_data:
+      logger.info(f"Nuevo enlace rastreado: {title} (Stock: {current_stock} | Precio: {current_price})")
+      state[url] = {"title": title, "editorial": editorial, "stock": current_stock, "price": current_price}
       
-    elif current_stock != last_stock:
-      logger.info(f"Cambio de stock detectado para '{last_title}': de {last_stock} ➔ a {current_stock}")
-      notifier.send_stock_alert(last_title, last_editorial, last_stock, current_stock, url)
-      state[url] = {"title": last_title, "editorial": last_editorial, "stock": current_stock}
-      cambios_detectados += 1
+    else:
+      cambios_lista = []
+      
+      # Verificamos qué datos han cambiado
+      if current_stock != last_stock:
+        cambios_lista.append(f"Stock: de {last_stock} ➔ a {current_stock}")
+        
+      if last_price is not None and current_price != last_price:
+        cambios_lista.append(f"Precio: de {last_price} ➔ a {current_price}")
+
+      if cambios_lista:
+        logger.info(f"Cambios en '{last_title}': {', '.join(cambios_lista)}")
+        
+        titulo_alert = f"ACTUALIZACIÓN URL - {last_editorial}"
+        mensaje = f"Título: {last_title}\n" + "\n".join(cambios_lista) + f"\n\nEnlace: {url}"
+        
+        notifier.send_catalog_alert(titulo_alert, mensaje)
+        
+        state[url] = {"title": last_title, "editorial": last_editorial, "stock": current_stock, "price": current_price}
+        cambios_detectados += 1
+        
+      elif last_price is None:
+        state[url] = {"title": last_title, "editorial": last_editorial, "stock": current_stock, "price": current_price}
 
   db.save_all_products(state)
-  logger.info(f"Escaneo de stock completado. Cambios notificados: {cambios_detectados}")
+  logger.info(f"Escaneo de URLs completado. Cambios notificados: {cambios_detectados}")
 
-def procesar_catalogo(editorial):
-  logger.info(f"Iniciando tarea de procesamiento de catálogo ({editorial}) en segundo plano...")
-  catalog_scraper = CatalogScraper(editorial_target=editorial)
+def procesar_catalogo(search_term, editorial_filter):
+  logger.info(f"Iniciando procesamiento de catálogo ({editorial_filter}) en segundo plano...")
+  catalog_scraper = CatalogScraper(search_term=search_term, editorial_filter=editorial_filter)
   libros_actuales = catalog_scraper.scan_full_catalog()
   cambios = 0
 
   if libros_actuales:
-    libros_anteriores = db.get_catalog(editorial)
+    libros_anteriores = db.get_catalog(editorial_filter)
     
     if not libros_anteriores:
-      db.save_catalog(editorial, libros_actuales)
-      logger.info(f"Catálogo inicial de {editorial} guardado.")
+      db.save_catalog(editorial_filter, libros_actuales)
+      logger.info(f"Catálogo inicial de {editorial_filter} guardado.")
       return
         
     ids_actuales = set(libros_actuales.keys())
@@ -75,7 +95,7 @@ def procesar_catalogo(editorial):
     ids_nuevos = ids_actuales - ids_anteriores
     for id_nuevo in ids_nuevos:
       libro = libros_actuales[id_nuevo]
-      titulo_alert = f"NUEVO LIBRO - {editorial}"
+      titulo_alert = f"NUEVO LIBRO - {editorial_filter}"
       mensaje = f"Título: {libro['titulo']}\nPrecio: {libro['precio']}\nStock: {libro.get('stock', 'N/A')}\nHandle: {libro.get('handle', 'N/A')}"
       notifier.send_catalog_alert(titulo_alert, mensaje)
       cambios += 1
@@ -99,7 +119,7 @@ def procesar_catalogo(editorial):
         cambios_detectados_lista.append(f"Stock: de {stock_anterior} ➔ a {stock_actual}")
         
       if cambios_detectados_lista:
-        titulo_alert = f"ACTUALIZACIÓN - {editorial}"
+        titulo_alert = f"ACTUALIZACIÓN - {editorial_filter}"
         mensaje_cambios = f"Título: {libro_actual['titulo']}\n" + "\n".join(cambios_detectados_lista)
         notifier.send_catalog_alert(titulo_alert, mensaje_cambios)
         cambios += 1
@@ -110,23 +130,19 @@ def procesar_catalogo(editorial):
       libro = libros_anteriores[id_removido]
       handle = libro.get('handle')
       
-      # Doble verificación delegada al scraper
       sigue_existiendo = catalog_scraper.verify_book_exists(handle)
       
       if sigue_existiendo:
-        # Falso positivo: el buscador lo ignoró o le cambiaron el ISBN. 
-        # Lo conservamos en nuestro diccionario actual para que no se borre de la DB.
         libros_actuales[id_removido] = libro
       else:
-        # Eliminado real
-        titulo_alert = f"ELIMINADO - {editorial}"
+        titulo_alert = f"ELIMINADO - {editorial_filter}"
         mensaje_baja = f"El libro '{libro['titulo']}' ya no se encuentra en el catálogo."
         notifier.send_catalog_alert(titulo_alert, mensaje_baja)
         cambios += 1
         
-    db.save_catalog(editorial, libros_actuales)
+    db.save_catalog(editorial_filter, libros_actuales)
     
-  logger.info(f"Escaneo de catálogo ({editorial}) completado. Cambios detectados: {cambios}")
+  logger.info(f"Escaneo de catálogo ({editorial_filter}) completado. Cambios detectados: {cambios}")
 
 @app.route('/')
 def home():
@@ -143,17 +159,16 @@ def run_monitor():
   
   return "Escaneo de stock iniciado en segundo plano.", 202
 
-@app.route('/escanear-catalogo')
-def scan_catalog():
+@app.route('/escanear-catalogo/<search_term>/<editorial_filter>')
+def scan_catalog(search_term, editorial_filter):
   if request.args.get('token') != TOKEN_SECRETO:
-    logger.warning("Intento de acceso denegado a /escanear-catalogo (Token inválido)")
+    logger.warning(f"Intento de acceso denegado a /escanear-catalogo/{search_term}/{editorial_filter} (Token inválido)")
     return "Acceso denegado.", 403
 
-  editorial = "ALBA"
-  hilo = threading.Thread(target=procesar_catalogo, args=(editorial,))
+  hilo = threading.Thread(target=procesar_catalogo, args=(search_term, editorial_filter))
   hilo.start()
 
-  return f"Escaneo de catálogo de {editorial} iniciado en segundo plano.", 202
+  return f"Escaneo iniciado. Búsqueda: '{search_term}', Filtro: '{editorial_filter}'.", 202
 
 if __name__ == '__main__':
   logger.info("Iniciando aplicación Flask...")

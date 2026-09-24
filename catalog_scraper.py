@@ -6,7 +6,6 @@ from lxml import html
 import time
 import re
 
-# Configuración global de los logs (puedes ajustar el formato a tu gusto)
 logging.basicConfig(
   level=logging.INFO,
   format='%(asctime)s [%(levelname)s] %(message)s',
@@ -14,11 +13,12 @@ logging.basicConfig(
 )
 
 class CatalogScraper:
-  def __init__(self, editorial_target="ALBA"):
-    # Instanciamos el logger para esta clase
+  def __init__(self, search_term, editorial_filter):
     self.logger = logging.getLogger(__name__)
     
-    self.editorial_target = editorial_target.upper()
+    self.search_term = search_term
+    self.editorial_filter = editorial_filter.upper()
+    
     self.base_url = "https://libreriayachaywasi.com"
     self.search_url = f"{self.base_url}/search"
     self.headers = {
@@ -48,10 +48,10 @@ class CatalogScraper:
 
     libros_totales = {}
     pagina = 1
-    self.logger.info(f"Iniciando escaneo del catálogo para la editorial: {self.editorial_target}")
+    self.logger.info(f"Iniciando escaneo. Búsqueda: '{self.search_term}' | Filtro: '{self.editorial_filter}'")
 
     while True:
-      url = f"{self.search_url}?page={pagina}&q={self.editorial_target}"
+      url = f"{self.search_url}?page={pagina}&q={self.search_term}"
       self.logger.info(f"Escaneando página {pagina}...")
 
       try:
@@ -124,7 +124,6 @@ class CatalogScraper:
               except Exception as e_html:
                 self.logger.error(f"Error procesando HTML para {html_url}: {e_html}")
 
-              # --- Depuración con logs en nivel DEBUG ---
               if debug and pagina == 1 and idx < max_debug_items:
                 self.logger.debug(
                   f"\n===== Item {idx} =====\n"
@@ -138,7 +137,7 @@ class CatalogScraper:
                   f"Stock extraído: {stock}"
                 )
 
-              if editorial_texto and self.editorial_target in editorial_texto:
+              if editorial_texto and self.editorial_filter in editorial_texto:
                 libros_totales[id_libro] = {
                   "titulo": titulo,
                   "precio": precio,
@@ -156,29 +155,21 @@ class CatalogScraper:
         time.sleep(2)
 
       except Exception as e:
-        # exc_info=True imprime todo el rastreo del error en consola (Stack trace)
         self.logger.critical(f"Error crítico en página {pagina}: {e}", exc_info=True)
         break
 
-    self.logger.info(f"Escaneo finalizado. Total de libros extraídos: {len(libros_totales)}")
+    self.logger.info(f"Escaneo finalizado. Total extraídos: {len(libros_totales)}")
     return libros_totales
 
   def verify_book_exists(self, handle: str) -> bool:
-    """
-    Hace una petición directa a la URL del producto para confirmar si sigue existiendo.
-    Evita falsos positivos si el buscador interno de la tienda falla.
-    """
-    # Tiempo de espera breve solicitado
     time.sleep(2)
     
-    # Reconstruimos la URL directa usando el handle
     url_json = f"{self.base_url}/products/{handle}.json"
     self.logger.info(f"Doble verificación: Comprobando existencia directa de {handle}...")
     
     try:
       res = self.session.get(url_json, headers=self.json_headers, timeout=15)
       
-      # Si devuelve 200, el libro sigue existiendo.
       if res.status_code == 200:
         self.logger.info(f"[FALSO ELIMINADO] El libro '{handle}' sigue activo en la tienda.")
         return True
@@ -188,5 +179,4 @@ class CatalogScraper:
         
     except Exception as e:
       self.logger.error(f"Error en doble verificación para {handle}: {e}")
-      # Si hay error de red, asumimos que existe para no borrarlo por accidente
-      return True 
+      return True
