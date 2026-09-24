@@ -61,7 +61,7 @@ class ProductScraper:
     
     for url in urls:
       self.logger.info(f"Extrayendo datos de: {url}")
-      time.sleep(1.5)  # Retraso para no saturar el servidor
+      time.sleep(3)  # Retraso para no saturar el servidor
       title, editorial, stock, price = self.get_product_data(url)
       
       resultados[url] = {
