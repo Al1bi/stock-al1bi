@@ -146,13 +146,13 @@ class CatalogScraper:
                   "stock": stock
                 }
                 
-            time.sleep(2) 
+            time.sleep(2.5) 
             
           except Exception as e_json:
             self.logger.error(f"Error procesando JSON para {json_url}: {e_json}")
 
         pagina += 1
-        time.sleep(2.5)
+        time.sleep(3)
 
       except Exception as e:
         self.logger.critical(f"Error crítico en página {pagina}: {e}", exc_info=True)
